@@ -157,6 +157,12 @@ void setupWiFiConnection() {
 
 void setupNormalWebserver() {
   setupWiFiConnection();
+
+  server.on("/", [](){
+    server.send(200, "text/html", "Download SketchController and begin using this sketcher.");
+  });
+
+  server.begin();
 }
 
 void setup() {
