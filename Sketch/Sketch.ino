@@ -69,6 +69,8 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
 
 WebServer server(80); // Webserver for communicating and setup
 Preferences preferences; //Save preferences
+static String wifi_ssid;
+static String wifi_pass;
 
 void blinkLedBlocking(int pin, int onDuration) {
   digitalWrite(pin, HIGH);
@@ -117,29 +119,45 @@ void setupAPAndWebserver() {
   Serial.println("Server is running...");
 }
 
-void setupNormalWebserver() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(preferences.getString("wifi_ssid", ""), preferences.getString("wifi_ssid", ""));
+void setupWiFiConnection() {
+  wifi_ssid = preferences.getString("wifi_ssid", "");
+  wifi_pass = preferences.getString("wifi_password", "");
 
-  int tries = 15;
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.print(".");
-    blinkLedBlocking(25, 100);
-    tries--;
-    if(tries <= 0) {
-      preferences.remove("wifi_ssid");
-      blinkLedBlocking(25, 100);
-      restart();
-    }
+  if (wifi_ssid.isEmpty()) {
+    Serial.println("No WiFi credentials stored");
+    // restart(); // Ensure this is defined elsewhere
+    return;
   }
 
-  blinkLedBlocking(25, 2000);
-  Serial.println("Connected to WiFi!");
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.disconnect(true);
+  WiFi.setAutoReconnect(true);
+  WiFi.setHostname("Sketchingboard");
+  delay(200);
+
+  Serial.printf("Connecting to SSID: %s\n", wifi_ssid.c_str());
+
+  // 2. Register events with non-capturing lambdas
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    Serial.print("Connected! IP address: ");
+    Serial.println(IPAddress(info.got_ip.ip_info.ip.addr));
+  }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+
+  WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+    Serial.print("Disconnected. Reason: ");
+    Serial.println(info.wifi_sta_disconnected.reason);
+    
+    // Use the global/static variables instead of trying to capture
+    //WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str()); system does this for me
+  }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+  WiFi.begin(wifi_ssid.c_str(), wifi_pass.c_str());
 }
 
-
+void setupNormalWebserver() {
+  setupWiFiConnection();
+}
 
 void setup() {
   delay(2000); //Waiting for potential serial monitors
